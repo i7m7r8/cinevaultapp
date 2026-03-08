@@ -1,0 +1,17 @@
+[
+    {
+        "url": "https://raw.githubusercontent.com/i7m7r8/cinevaultapp/master/CineVaultProvider.cs3",
+        "status": 1,
+        "version": 1,
+        "apiVersion": 1,
+        "name": "CineVault",
+        "internalName": "CineVaultProvider",
+        "authors": ["i7m7r8"],
+        "description": "Movies and TV Shows via TMDB + Torrentio",
+        "repositoryUrl": "https://github.com/i7m7r8/cinevaultapp",
+        "tvTypes": ["Movie", "TvSeries"],
+        "language": "en",
+        "iconUrl": "https://i7m7r8.github.io/cinevault/icon.png",
+        "fileSize": null
+    }
+]
