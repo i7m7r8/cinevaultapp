@@ -1,0 +1,9 @@
+{
+    "name": "CineVault",
+    "description": "CineVault - Movies & TV Shows",
+    "manifestVersion": 1,
+    "iconUrl": "https://i7m7r8.github.io/cinevault/icon.png",
+    "pluginLists": [
+        "https://raw.githubusercontent.com/i7m7r8/cinevaultapp/master/plugins.json"
+    ]
+}
