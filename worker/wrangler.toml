@@ -1,1 +1,6 @@
- 
+name = "cinevault-api"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+TMDB_KEY = "4ef0d7355d9ffb5151e987764708ce96"
