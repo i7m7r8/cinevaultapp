@@ -4,6 +4,8 @@ const TMDB = "https://api.themoviedb.org/3";
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,OPTIONS",
+  "Access-Control-Allow-Headers": "Range, Content-Type",
+  "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges, Content-Type",
   "Content-Type": "application/json"
 };
 
@@ -19,6 +21,51 @@ export default {
 
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: cors });
+    }
+
+    // ── STREAM-PROXY ──────────────────────────────────────────
+    // Pipes any video URL with CORS + Range support for Video.js
+    // Cloudflare IPs are not blocked by Torrentio unlike Vercel
+    if (path === "/stream-proxy") {
+      const targetUrl = params.get("url");
+      if (!targetUrl || (!targetUrl.startsWith("https://") && !targetUrl.startsWith("http://"))) {
+        return json({ error: "invalid url" }, 400);
+      }
+
+      const proxyHeaders = new Headers({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "*/*",
+      });
+
+      // Forward Range header for seeking
+      const range = request.headers.get("Range");
+      if (range) proxyHeaders.set("Range", range);
+
+      try {
+        const upstream = await fetch(targetUrl, {
+          headers: proxyHeaders,
+          redirect: "follow",
+        });
+
+        const respHeaders = new Headers({
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+          "Access-Control-Allow-Headers": "Range, Content-Type",
+          "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges, Content-Type",
+        });
+
+        for (const h of ["content-type","content-length","content-range","accept-ranges","last-modified","etag"]) {
+          const v = upstream.headers.get(h);
+          if (v) respHeaders.set(h, v);
+        }
+
+        return new Response(upstream.body, {
+          status: upstream.status,
+          headers: respHeaders
+        });
+      } catch(e) {
+        return json({ error: e.message }, 502);
+      }
     }
 
     // ── TORRENTIO STREAMS ─────────────────────────────────────
