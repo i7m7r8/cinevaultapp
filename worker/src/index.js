@@ -25,7 +25,6 @@ export default {
 
     // ── STREAM-PROXY ──────────────────────────────────────────
     // Pipes any video URL with CORS + Range support for Video.js
-    // Cloudflare IPs are not blocked by Torrentio unlike Vercel
     if (path === "/stream-proxy") {
       const targetUrl = params.get("url");
       if (!targetUrl || (!targetUrl.startsWith("https://") && !targetUrl.startsWith("http://"))) {
@@ -37,7 +36,6 @@ export default {
         "Accept": "*/*",
       });
 
-      // Forward Range header for seeking
       const range = request.headers.get("Range");
       if (range) proxyHeaders.set("Range", range);
 
@@ -65,6 +63,72 @@ export default {
         });
       } catch(e) {
         return json({ error: e.message }, 502);
+      }
+    }
+
+    // ── TORRENT STREAM via proxy ──────────────────────────────
+    // GET /torrent-stream/:hash/:fileIdx
+    // Fetches streams from Torrentio, finds matching hash, proxies the video
+    const torrentMatch = path.match(/^\/torrent-stream\/([0-9a-f]{32,40})(?:\/(\d+))?$/i);
+    if (torrentMatch) {
+      const hash = torrentMatch[1].toLowerCase();
+      const fileIdx = parseInt(torrentMatch[2] || "0");
+
+      // Torrentio direct stream URL format
+      const candidates = [
+        `https://torrentio.strem.fun/${hash}/${fileIdx}/stream.mp4`,
+        `https://torrentio.strem.fun/${hash}/${fileIdx}/video.mp4`,
+      ];
+
+      for (const candidate of candidates) {
+        try {
+          const probe = await fetch(candidate, {
+            method: "HEAD",
+            headers: { "User-Agent": "Mozilla/5.0" }
+          });
+          if (probe.ok) {
+            // Proxy it with Range support
+            const range = request.headers.get("Range");
+            const upHeaders = new Headers({ "User-Agent": "Mozilla/5.0", "Accept": "*/*" });
+            if (range) upHeaders.set("Range", range);
+
+            const upstream = await fetch(candidate, { headers: upHeaders });
+            const respHeaders = new Headers({
+              "Access-Control-Allow-Origin": "*",
+              "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges, Content-Type",
+              "Accept-Ranges": "bytes",
+            });
+            for (const h of ["content-type","content-length","content-range","accept-ranges"]) {
+              const v = upstream.headers.get(h);
+              if (v) respHeaders.set(h, v);
+            }
+            return new Response(upstream.body, { status: upstream.status, headers: respHeaders });
+          }
+        } catch {}
+      }
+
+      return json({ error: "no_stream" }, 404);
+    }
+
+    // ── APIBAY PROXY ─────────────────────────────────────────
+    // GET /apibay?q=...&cat=200
+    // Proxies apibay.org to avoid browser CORS issues
+    if (path === "/apibay") {
+      const q = params.get("q") || "";
+      const cat = params.get("cat") || "200";
+      try {
+        const r = await fetch(
+          `https://apibay.org/q.php?q=${encodeURIComponent(q)}&cat=${cat}`,
+          { headers: { "User-Agent": "Mozilla/5.0" } }
+        );
+        const text = await r.text();
+        return new Response(text, {
+          headers: { ...cors, "Content-Type": "application/json" }
+        });
+      } catch(e) {
+        return new Response("[]", {
+          headers: { ...cors, "Content-Type": "application/json" }
+        });
       }
     }
 
@@ -105,7 +169,7 @@ export default {
       }
     }
 
-    // ── TMDB PROXY — forwards all other paths to TMDB ─────────
+    // ── TMDB PROXY ────────────────────────────────────────────
     params.set("api_key", TMDB_KEY);
     const tmdbUrl = `${TMDB}${path}?${params.toString()}`;
 
