@@ -36,6 +36,16 @@ export default {
         "Accept": "*/*",
       });
 
+      // Pass referer/origin if provided — required for vixsrc, autoembed HLS streams
+      const refererParam = params.get("referer");
+      if (refererParam) {
+        try {
+          const refDecoded = decodeURIComponent(refererParam);
+          proxyHeaders.set("Referer", refDecoded);
+          proxyHeaders.set("Origin", new URL(refDecoded).origin);
+        } catch(e) {}
+      }
+
       const range = request.headers.get("Range");
       if (range) proxyHeaders.set("Range", range);
 
